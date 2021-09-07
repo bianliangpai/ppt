@@ -5,14 +5,14 @@
 
 #include <iostream>
 #include <string>
-#include <type_traits>
-#include <vector>
 
-void consume(std::string& remaining) {
-  remaining = std::string(remaining.begin() + 1, remaining.end());
+template <typename String = std::string>
+void consume(String& remaining) {
+  remaining = String(remaining.begin() + 1, remaining.end());
 }
 
-void PrettyPrintTypeImpl(std::string remaining, std::string prefix) {
+template <typename String = std::string>
+void PrettyPrintTypeImpl(String remaining, String prefix) {
   while (true) {
     char ch = remaining.front();
     if (ch == '\0') {
@@ -39,17 +39,35 @@ void PrettyPrintTypeImpl(std::string remaining, std::string prefix) {
         std::cout << ch;
         break;
     }
-    consume(remaining);
+    consume<String>(remaining);
   }
 }
 
 template <typename T>
 void PrettyPrintType() {
-  char buf[500] = {'\0'};
+  char buf[1000] = {'\0'};
   char* result = buf;
-  result = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, nullptr);
-  std::string remaining(result);
-  PrettyPrintTypeImpl(remaining, "");
+  int status{0};
+  result = abi::__cxa_demangle(typeid(T).name(), nullptr, nullptr, &status);
+
+  // 'status' explaination
+  // https://gcc.gnu.org/onlinedocs/libstdc++/libstdc++-html-USERS-4.3/a01696.html
+  if (status == 0) {
+    std::string remaining(result);
+    PrettyPrintTypeImpl<std::string>(remaining, "");
+  } else {
+    std::cerr << "[cxa_demangle error] ";
+    if (status == -1) {
+      std::cerr << "memory allocation failiure occurred.\n";
+    } else if (status == -2) {
+      std::cerr << "mangled_name is not a valid name under the C++ ABI "
+                   "mangling rules.\n";
+    } else if (status == -3) {
+      std::cerr << "One of the arguments is invalid.\n";
+    } else {
+      std::cerr << "Unknown status.\n";
+    }
+  }
 }
 
 #define PPT(x) PrettyPrintType<decltype(x)>();
